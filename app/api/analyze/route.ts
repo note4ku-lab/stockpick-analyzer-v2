@@ -1,255 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  analyzeStock,
-  Candle,
-  AnalysisMode,
-} from "../../../lib/analysis-engine";
+import { analyzeStock, Candle, AnalysisMode } from "../../../lib/analysis-engine";
 
-const ZAPI_URL =
-  "https://api.zpi.web.id/v1/finance:idx/stock-history";
+const ZAPI_HISTORY = "https://api.zpi.web.id/v1/finance:idx/stock-history";
+const ZAPI_DAILY = "https://api.zpi.web.id/v1/finance:idx/trading-info-daily";
+const VALID_MODES: AnalysisMode[] = ["AUTO", "SCALPING", "DAY TRADE", "SWING", "LONG SWING"];
 
-const VALID_MODES: AnalysisMode[] = [
-  "AUTO",
-  "SCALPING",
-  "DAY TRADE",
-  "SWING",
-  "LONG SWING",
-];
+async function zapi(path:string, apiKey:string) {
+  const response = await fetch(path, { headers: { "x-api-key": apiKey }, cache: "no-store" });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Zapi IDX error (${response.status})`);
+  try { return JSON.parse(text); } catch { throw new Error("Response Zapi bukan JSON yang valid"); }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const ticker = String(body.ticker || "").trim().toUpperCase();
+    if (!ticker) return NextResponse.json({ success:false, error:"Kode saham tidak ditemukan" }, { status:400 });
 
-    // =========================
-    // TICKER
-    // =========================
-
-    const ticker = String(body.ticker || "")
-      .trim()
-      .toUpperCase();
-
-    if (!ticker) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Kode saham tidak ditemukan",
-        },
-        { status: 400 }
-      );
-    }
-
-    // =========================
-    // MODE
-    // =========================
-
-    const requestedMode = String(
-      body.mode || "AUTO"
-    ).toUpperCase() as AnalysisMode;
-
-    const mode: AnalysisMode = VALID_MODES.includes(
-      requestedMode
-    )
-      ? requestedMode
-      : "AUTO";
-
-    // =========================
-    // ZAPI API KEY
-    // =========================
-
+    const requested = String(body.mode || "AUTO").toUpperCase() as AnalysisMode;
+    const mode:AnalysisMode = VALID_MODES.includes(requested) ? requested : "AUTO";
     const apiKey = process.env.ZAPI_API_KEY;
+    if (!apiKey) return NextResponse.json({ success:false, error:"ZAPI_API_KEY belum tersedia di environment Vercel" }, { status:500 });
 
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "ZAPI_API_KEY belum tersedia di environment Vercel",
-        },
-        { status: 500 }
-      );
-    }
+    const [history, daily] = await Promise.all([
+      zapi(`${ZAPI_HISTORY}?code=${encodeURIComponent(ticker)}&length=250`, apiKey),
+      zapi(`${ZAPI_DAILY}?code=${encodeURIComponent(ticker)}`, apiKey).catch(() => null),
+    ]);
 
-    // =========================
-    // REQUEST ZAPI
-    // =========================
+    const items = Array.isArray(history?.items) ? history.items : Array.isArray(history?.data?.items) ? history.data.items : [];
+    const candles:Candle[] = items.map((item:any) => ({
+      date:String(item.date ?? item.Date ?? ""),
+      open:Number(item.open ?? item.Open ?? item.openPrice),
+      high:Number(item.high ?? item.High),
+      low:Number(item.low ?? item.Low),
+      close:Number(item.close ?? item.Close ?? item.last),
+      volume:Number(item.volume ?? item.Volume),
+    })).filter((c:Candle) => Object.values(c).every((v,i) => i === 0 || Number.isFinite(v))).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const url =
-      `${ZAPI_URL}?code=${encodeURIComponent(
-        ticker
-      )}&length=250`;
+    if (candles.length < 100) return NextResponse.json({ success:false, error:`Data ${ticker} hanya memiliki ${candles.length} candle. Minimal 100 candle.` }, { status:400 });
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "x-api-key": apiKey,
-      },
-      cache: "no-store",
-    });
-
-    const rawText = await response.text();
-
-    console.log(
-      "Zapi HTTP status:",
-      response.status
-    );
-
-    if (!response.ok) {
-      console.error(
-        "Zapi HTTP error:",
-        response.status,
-        rawText
-      );
-
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Zapi IDX error (${response.status})`,
-        },
-        { status: 502 }
-      );
-    }
-
-    // =========================
-    // PARSE RESPONSE
-    // =========================
-
-    let data: any;
-
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      console.error(
-        "Zapi response bukan JSON"
-      );
-
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Response Zapi bukan JSON yang valid",
-        },
-        { status: 502 }
-      );
-    }
-
-    /*
-     * Zapi dapat mengembalikan:
-     *
-     * data.items
-     *
-     * atau:
-     *
-     * data.data.items
-     */
-
-    const items =
-      Array.isArray(data?.items)
-        ? data.items
-        : Array.isArray(data?.data?.items)
-        ? data.data.items
-        : Array.isArray(data?.data)
-        ? data.data
-        : null;
-
-    if (!items) {
-      console.error(
-        "Zapi tidak mengembalikan items:",
-        JSON.stringify(data)
-      );
-
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Data historis saham tidak ditemukan",
-        },
-        { status: 404 }
-      );
-    }
-
-    console.log(
-      `Zapi ${ticker}: ${items.length} data ditemukan`
-    );
-
-    // =========================
-    // CONVERT TO CANDLE
-    // =========================
-
-    const candles: Candle[] = items
-      .map((item: any) => ({
-        date: String(item.date ?? item.Date ?? ""),
-        open: Number(item.open ?? item.Open ?? item.openPrice),
-        high: Number(item.high ?? item.High),
-        low: Number(item.low ?? item.Low),
-        close: Number(item.close ?? item.Close ?? item.last),
-        volume: Number(item.volume ?? item.Volume),
-      }))
-      .filter(
-        (candle: Candle) =>
-          Number.isFinite(candle.open) &&
-          Number.isFinite(candle.high) &&
-          Number.isFinite(candle.low) &&
-          Number.isFinite(candle.close) &&
-          Number.isFinite(candle.volume)
-      )
-      .sort(
-        (a: Candle, b: Candle) =>
-          new Date(a.date).getTime() -
-          new Date(b.date).getTime()
-      );
-
-    console.log(
-      `Candle valid ${ticker}: ${candles.length}`
-    );
-
-    if (candles.length < 20) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Data ${ticker} hanya memiliki ${candles.length} candle. Minimal 20 candle.`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // =========================
-    // ANALYSIS ENGINE
-    // =========================
-
-    const result = analyzeStock(
-      candles,
-      mode
-    );
-
-    const latestPrice =
-      candles[candles.length - 1].close;
-
-    // =========================
-    // RESPONSE
-    // =========================
+    const result = analyzeStock(candles, mode);
+    const historyLatest = candles[candles.length - 1];
+    const dailyQuote = daily?.data ?? daily?.item ?? daily;
+    const latestPrice = Number(dailyQuote?.close ?? dailyQuote?.last ?? dailyQuote?.price ?? historyLatest.close);
+    const latestDate = String(dailyQuote?.date ?? historyLatest.date);
 
     return NextResponse.json({
-      success: true,
+      success:true,
       ticker,
       mode,
-      candlesCount: candles.length,
-      latestPrice,
+      candlesCount:candles.length,
+      latestPrice:Number.isFinite(latestPrice) ? latestPrice : historyLatest.close,
+      latestDate,
+      priceSource: dailyQuote?.close != null ? "Zapi IDX trading-info-daily" : "Zapi IDX stock-history",
       result,
-      candles: candles.slice(-120),
+      candles:candles.slice(-120),
     });
   } catch (error) {
-    console.error(
-      "Analyze API error:",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          "Gagal melakukan analisis saham",
-      },
-      { status: 500 }
-    );
+    console.error("Analyze API error:", error);
+    return NextResponse.json({ success:false, error:error instanceof Error ? error.message : "Gagal melakukan analisis saham" }, { status:500 });
   }
 }

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       low:Number(item.low ?? item.Low),
       close:Number(item.close ?? item.Close ?? item.last),
       volume:Number(item.volume ?? item.Volume),
-    })).filter((c:Candle) => Object.values(c).every((v,i) => i === 0 || Number.isFinite(v))).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    })).filter((c:Candle) => Object.values(c).every((v,i) => i === 0 || Number.isFinite(v))).sort((a:Candle,b:Candle) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     if (candles.length < 100) return NextResponse.json({ success:false, error:`Data ${ticker} hanya memiliki ${candles.length} candle. Minimal 100 candle.` }, { status:400 });
 

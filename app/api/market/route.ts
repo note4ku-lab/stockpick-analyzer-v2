@@ -28,6 +28,19 @@ function n(...values: any[]) {
   return NaN;
 }
 
+function rowsFrom(data: any): any[] {
+  const candidates = [
+    data?.data,
+    data?.items,
+    data?.content,
+    data?.data?.items,
+    data?.data?.content,
+    data?.result,
+  ];
+  for (const value of candidates) if (Array.isArray(value)) return value;
+  return [];
+}
+
 function normalize(row: any) {
   if (!row) return null;
   const last = n(row.last, row.Last, row.Close, row.close, row.value, row.Value);
@@ -41,44 +54,41 @@ function normalize(row: any) {
     Number.isFinite(last) && Number.isFinite(previous) && previous !== 0 ? ((last - previous) / previous) * 100 : NaN
   );
   if (!Number.isFinite(last)) return null;
+  return { last, previous, change, changePercent, date: row.date ?? row.Date ?? null };
+}
+
+function diagnostic(result: any, rows: any[]) {
   return {
-    last,
-    previous,
-    change,
-    changePercent,
-    date: row.date ?? row.Date ?? null,
+    status: result.status,
+    ok: result.ok,
+    keys: result.data && typeof result.data === "object" ? Object.keys(result.data).slice(0, 15) : [],
+    count: rows.length,
+    sampleKeys: rows[0] && typeof rows[0] === "object" ? Object.keys(rows[0]).slice(0, 15) : [],
   };
 }
 
 export async function GET() {
   const apiKey = process.env.ZAPI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ success: false, error: "ZAPI_API_KEY belum tersedia" }, { status: 500 });
-  }
+  if (!apiKey) return NextResponse.json({ success: false, error: "ZAPI_API_KEY belum tersedia" }, { status: 500 });
 
   try {
-    // Primary: documented single-index endpoint. Keep the query minimal so
-    // the response shape is not affected by optional grouping parameters.
-    const direct = await fetchJson("index-constituent?code=COMPOSITE", apiKey);
-    const directRows = Array.isArray(direct.data?.items)
-      ? direct.data.items
-      : Array.isArray(direct.data?.data) ? direct.data.data : [];
-    const directRow = directRows.find((x: any) => String(x.code ?? x.IndexCode ?? "").toUpperCase() === "COMPOSITE") ?? directRows[0];
-    let parsed = direct.ok ? normalize(directRow) : null;
-    let source = "Zapi IDX index-constituent";
+    // First use the documented index-summary endpoint for IHSG/COMPOSITE.
+    const summary = await fetchJson("index-summary?length=50&start=0", apiKey);
+    const summaryRows = rowsFrom(summary.data);
+    const summaryRow = summaryRows.find((x: any) => String(x.IndexCode ?? x.code ?? "").toUpperCase() === "COMPOSITE")
+      ?? summaryRows.find((x: any) => /composite|ihsg/i.test(String(x.IndexName ?? x.name ?? x.IndexCode ?? x.code ?? "")));
+    let parsed = summary.ok ? normalize(summaryRow) : null;
+    let source = "Zapi IDX index-summary";
 
-    // Fallback: full index summary.
+    // Secondary documented endpoint: direct index board lookup.
+    let direct: any = null;
+    let directRows: any[] = [];
     if (!parsed) {
-      const summary = await fetchJson("index-summary?length=50&start=0", apiKey);
-      const rows = Array.isArray(summary.data?.data)
-        ? summary.data.data
-        : Array.isArray(summary.data?.items) ? summary.data.items : [];
-      const row = rows.find((x: any) => String(x.IndexCode ?? x.code ?? "").toUpperCase() === "COMPOSITE")
-        ?? rows.find((x: any) => /composite|ihsg/i.test(String(x.IndexName ?? x.name ?? x.IndexCode ?? x.code ?? "")));
-      if (summary.ok) {
-        parsed = normalize(row);
-        if (parsed) source = "Zapi IDX index-summary";
-      }
+      direct = await fetchJson("index-constituent?code=COMPOSITE", apiKey);
+      directRows = rowsFrom(direct.data);
+      const directRow = directRows.find((x: any) => String(x.code ?? x.IndexCode ?? "").toUpperCase() === "COMPOSITE") ?? directRows[0];
+      parsed = direct.ok ? normalize(directRow) : null;
+      if (parsed) source = "Zapi IDX index-constituent";
     }
 
     if (!parsed) {
@@ -86,22 +96,16 @@ export async function GET() {
         success: false,
         error: "Data IHSG belum tersedia dari Zapi IDX",
         diagnostic: {
-          directStatus: direct.status,
-          directKeys: direct.data && typeof direct.data === "object" ? Object.keys(direct.data).slice(0, 10) : [],
-          directCount: directRows.length,
+          summary: diagnostic(summary, summaryRows),
+          direct: direct ? diagnostic(direct, directRows) : null,
+          note: "Endpoint dan response asli dicatat agar masalah API/izin/format dapat dibedakan tanpa menebak angka IHSG."
         },
       }, { status: 502 });
     }
 
     return NextResponse.json({
       success: true,
-      index: {
-        code: "COMPOSITE",
-        name: "IHSG",
-        ...parsed,
-        marketStatus: "IDX DATA",
-        fetchedAt: new Date().toISOString(),
-      },
+      index: { code: "COMPOSITE", name: "IHSG", ...parsed, marketStatus: "IDX DATA", fetchedAt: new Date().toISOString() },
       source,
     });
   } catch (error) {

@@ -17,6 +17,7 @@ export type AnalysisResult = {
   tp1:number
   tp2:number
   riskReward:number
+  entryType:"BUY ON PULLBACK"|"SELL ON RETEST"|"WAIT"
   support:number
   resistance:number
   reasons:string[]
@@ -87,13 +88,17 @@ export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):Analy
   reasons.push(`Setup ${method.toLowerCase()} menggunakan volatilitas ATR untuk level risiko`)
 
   const cfg=MODE[method], atrSafe=Math.max(atrValue,price*0.005)
-  const entryLow=price-atrSafe*cfg.entryAtr, entryHigh=price+atrSafe*cfg.entryAtr*0.5, entry=(entryLow+entryHigh)/2
-  const structuralStop=signal==="SELL"?resistance+atrSafe*0.15:support-atrSafe*0.15
-  const volatilityStop=signal==="SELL"?entryHigh+atrSafe*cfg.stopAtr:entryLow-atrSafe*cfg.stopAtr
-  const stopLoss=signal==="SELL"?Math.min(structuralStop,volatilityStop):Math.max(structuralStop,volatilityStop)
-  const risk=Math.max(Math.abs(entry-stopLoss),atrSafe*0.35)
-  const direction=signal==="SELL"?-1:1
-  let tp1=entry+direction*risk*cfg.tp1R, tp2=entry+direction*risk*cfg.tp2R
+  // Trade plan: entries are explicitly directional. BUY waits below price (pullback),
+  // SELL waits above price (retest). Stops are always on the protective side of entry.
+  const entryLow = signal === "SELL" ? price + atrSafe*cfg.entryAtr*0.30 : price - atrSafe*cfg.entryAtr
+  const entryHigh = signal === "SELL" ? price + atrSafe*cfg.entryAtr : price - atrSafe*cfg.entryAtr*0.30
+  const entry = (entryLow + entryHigh) / 2
+  const structuralStop = signal === "SELL" ? resistance + atrSafe*0.15 : support - atrSafe*0.15
+  const volatilityStop = signal === "SELL" ? entryHigh + atrSafe*cfg.stopAtr : entryLow - atrSafe*cfg.stopAtr
+  const stopLoss = signal === "SELL" ? Math.max(structuralStop, volatilityStop) : Math.min(structuralStop, volatilityStop)
+  const risk = Math.max(Math.abs(entry-stopLoss), atrSafe*0.35)
+  const direction = signal === "SELL" ? -1 : 1
+  let tp1 = entry + direction*risk*cfg.tp1R, tp2 = entry + direction*risk*cfg.tp2R
   if(signal!=="SELL"){
     if(resistance>entry && resistance<tp1) tp1=resistance
     if(resistance>tp1 && resistance<tp2) tp2=resistance
@@ -108,5 +113,7 @@ export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):Analy
   const agreement=components.reduce((sum,x)=>sum+(Math.abs(x)>=0.5?1:0),0)/components.length
   const confidence=clamp(Math.round(52+agreement*25+Math.abs(composite)*18),52,92)
 
-  return {score,confidence,signal,trend,method,entry:tick(entry),entryLow:tick(entryLow),entryHigh:tick(entryHigh),stopLoss:tick(stopLoss),tp1:tick(tp1),tp2:tick(tp2),riskReward:rr,support:tick(support),resistance:tick(resistance),reasons,indicators:{price,changePct:(price-prev)/prev*100,ma5,ma20,ma50,ma100,rsi:rv,macd:mx.macd,macdSignal:mx.signal,macdHistogram:mx.histogram,volume,volumeMA20:vma,atr:atrSafe,atrPct:atrSafe/price*100,priceVsMA20,priceVsMA50,priceVsMA100,maTrend,momentum,volumeStatus}}
+  const entryType = signal === "BUY" ? "BUY ON PULLBACK" : signal === "SELL" ? "SELL ON RETEST" : "WAIT"
+
+  return {score,confidence,signal,trend,method,entryType,entry:tick(entry),entryLow:tick(entryLow),entryHigh:tick(entryHigh),stopLoss:tick(stopLoss),tp1:tick(tp1),tp2:tick(tp2),riskReward:rr,support:tick(support),resistance:tick(resistance),reasons,indicators:{price,changePct:(price-prev)/prev*100,ma5,ma20,ma50,ma100,rsi:rv,macd:mx.macd,macdSignal:mx.signal,macdHistogram:mx.histogram,volume,volumeMA20:vma,atr:atrSafe,atrPct:atrSafe/price*100,priceVsMA20,priceVsMA50,priceVsMA100,maTrend,momentum,volumeStatus}}
 }

@@ -21,6 +21,7 @@ export type AnalysisResult = {
   support:number
   resistance:number
   reasons:string[]
+  confidenceBreakdown:{label:string; score:number; note:string}[]
   indicators:{
     price:number; changePct:number; ma5:number; ma20:number; ma50:number; ma100:number
     rsi:number; macd:number; macdSignal:number; macdHistogram:number
@@ -112,8 +113,18 @@ export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):Analy
   const components=[trendScore,maScore,momentumScore,macdScore,volumeScore,priceScore]
   const agreement=components.reduce((sum,x)=>sum+(Math.abs(x)>=0.5?1:0),0)/components.length
   const confidence=clamp(Math.round(52+agreement*25+Math.abs(composite)*18),52,92)
+  const rrScore=clamp(Math.round((Math.min(rr,3)/3)*100),0,100)
+  const confidenceBreakdown=[
+    {label:"Trend",score:clamp(Math.round(50+50*trendScore),0,100),note:"Arah harga terhadap MA20/50/100"},
+    {label:"Moving Average",score:clamp(Math.round(50+50*maScore),0,100),note:"Susunan MA5/20/50"},
+    {label:"MACD",score:clamp(Math.round(50+50*macdScore),0,100),note:"MACD dibanding signal line"},
+    {label:"RSI",score:clamp(Math.round(50+50*momentumScore),0,100),note:"Momentum dan kondisi jenuh"},
+    {label:"Volume",score:clamp(Math.round(50+50*volumeScore),0,100),note:"Aktivitas volume vs MA20"},
+    {label:"Price Action",score:clamp(Math.round(50+50*priceScore),0,100),note:"Perubahan harga terbaru"},
+    {label:"Risk / Reward",score:rrScore,note:`R/R 1 : ${rr.toFixed(1)}`},
+  ]
 
   const entryType = signal === "BUY" ? "BUY ON PULLBACK" : signal === "SELL" ? "SELL ON RETEST" : "WAIT"
 
-  return {score,confidence,signal,trend,method,entryType,entry:tick(entry),entryLow:tick(entryLow),entryHigh:tick(entryHigh),stopLoss:tick(stopLoss),tp1:tick(tp1),tp2:tick(tp2),riskReward:rr,support:tick(support),resistance:tick(resistance),reasons,indicators:{price,changePct:(price-prev)/prev*100,ma5,ma20,ma50,ma100,rsi:rv,macd:mx.macd,macdSignal:mx.signal,macdHistogram:mx.histogram,volume,volumeMA20:vma,atr:atrSafe,atrPct:atrSafe/price*100,priceVsMA20,priceVsMA50,priceVsMA100,maTrend,momentum,volumeStatus}}
+  return {score,confidence,signal,trend,method,entryType,entry:tick(entry),entryLow:tick(entryLow),entryHigh:tick(entryHigh),stopLoss:tick(stopLoss),tp1:tick(tp1),tp2:tick(tp2),riskReward:rr,support:tick(support),resistance:tick(resistance),reasons,confidenceBreakdown,indicators:{price,changePct:(price-prev)/prev*100,ma5,ma20,ma50,ma100,rsi:rv,macd:mx.macd,macdSignal:mx.signal,macdHistogram:mx.histogram,volume,volumeMA20:vma,atr:atrSafe,atrPct:atrSafe/price*100,priceVsMA20,priceVsMA50,priceVsMA100,maTrend,momentum,volumeStatus}}
 }

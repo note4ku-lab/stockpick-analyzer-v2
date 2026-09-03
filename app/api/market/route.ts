@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 
 const BASE = "https://api.zpi.web.id/v1/finance:idx";
 
-async function fetchJson(url: string, apiKey: string) {
+async function fetchJson(path: string, apiKey: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const r = await fetch(url, {
+    const r = await fetch(`${BASE}/${path}`, {
       headers: { "x-api-key": apiKey, Accept: "application/json" },
       cache: "no-store",
       signal: controller.signal,
@@ -20,24 +20,34 @@ async function fetchJson(url: string, apiKey: string) {
   }
 }
 
-function numberOrNaN(...values: any[]) {
-  for (const value of values) {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
+function n(...values: any[]) {
+  for (const v of values) {
+    const x = Number(v);
+    if (Number.isFinite(x)) return x;
   }
   return NaN;
 }
 
-function normalize(last: any, previous: any, change: any, changePercent: any, date: any) {
-  const close = numberOrNaN(last);
-  const prev = numberOrNaN(previous);
-  const chg = numberOrNaN(change, Number.isFinite(close) && Number.isFinite(prev) ? close - prev : NaN);
-  const pct = numberOrNaN(
-    changePercent,
-    Number.isFinite(close) && Number.isFinite(prev) && prev !== 0 ? ((close - prev) / prev) * 100 : NaN
+function normalize(row: any) {
+  if (!row) return null;
+  const last = n(row.last, row.Last, row.Close, row.close, row.value, row.Value);
+  const previous = n(row.previous, row.Previous);
+  const change = n(row.change, row.Change, Number.isFinite(last) && Number.isFinite(previous) ? last - previous : NaN);
+  const changePercent = n(
+    row.changePercent,
+    row.ChangePercent,
+    row.percent,
+    row.Percent,
+    Number.isFinite(last) && Number.isFinite(previous) && previous !== 0 ? ((last - previous) / previous) * 100 : NaN
   );
-  if (!Number.isFinite(close)) return null;
-  return { last: close, previous: prev, change: chg, changePercent: pct, date: date ?? null };
+  if (!Number.isFinite(last)) return null;
+  return {
+    last,
+    previous,
+    change,
+    changePercent,
+    date: row.date ?? row.Date ?? null,
+  };
 }
 
 export async function GET() {
@@ -47,27 +57,27 @@ export async function GET() {
   }
 
   try {
-    // Prefer index-constituent because it is a direct single-index lookup for COMPOSITE.
-    const direct = await fetchJson(`${BASE}/index-constituent?code=COMPOSITE&group=main`, apiKey);
-    const directRow = Array.isArray(direct.data?.items)
-      ? direct.data.items.find((x: any) => String(x.code ?? "").toUpperCase() === "COMPOSITE") ?? direct.data.items[0]
-      : null;
-    let parsed = direct.ok && directRow
-      ? normalize(directRow.last, directRow.previous, directRow.change, directRow.changePercent, directRow.date)
-      : null;
+    // Primary: documented single-index endpoint. Keep the query minimal so
+    // the response shape is not affected by optional grouping parameters.
+    const direct = await fetchJson("index-constituent?code=COMPOSITE", apiKey);
+    const directRows = Array.isArray(direct.data?.items)
+      ? direct.data.items
+      : Array.isArray(direct.data?.data) ? direct.data.data : [];
+    const directRow = directRows.find((x: any) => String(x.code ?? x.IndexCode ?? "").toUpperCase() === "COMPOSITE") ?? directRows[0];
+    let parsed = direct.ok ? normalize(directRow) : null;
     let source = "Zapi IDX index-constituent";
 
-    // Fallback to the full index summary endpoint.
+    // Fallback: full index summary.
     if (!parsed) {
-      const summary = await fetchJson(`${BASE}/index-summary?length=50&start=0`, apiKey);
+      const summary = await fetchJson("index-summary?length=50&start=0", apiKey);
       const rows = Array.isArray(summary.data?.data)
         ? summary.data.data
         : Array.isArray(summary.data?.items) ? summary.data.items : [];
       const row = rows.find((x: any) => String(x.IndexCode ?? x.code ?? "").toUpperCase() === "COMPOSITE")
         ?? rows.find((x: any) => /composite|ihsg/i.test(String(x.IndexName ?? x.name ?? x.IndexCode ?? x.code ?? "")));
-      if (summary.ok && row) {
-        parsed = normalize(row.Close ?? row.close ?? row.last, row.Previous ?? row.previous, row.Change ?? row.change, row.ChangePercent ?? row.changePercent, row.Date ?? row.date);
-        source = "Zapi IDX index-summary";
+      if (summary.ok) {
+        parsed = normalize(row);
+        if (parsed) source = "Zapi IDX index-summary";
       }
     }
 
@@ -75,7 +85,11 @@ export async function GET() {
       return NextResponse.json({
         success: false,
         error: "Data IHSG belum tersedia dari Zapi IDX",
-        diagnostic: { directStatus: direct.status, directHasItems: Array.isArray(direct.data?.items) },
+        diagnostic: {
+          directStatus: direct.status,
+          directKeys: direct.data && typeof direct.data === "object" ? Object.keys(direct.data).slice(0, 10) : [],
+          directCount: directRows.length,
+        },
       }, { status: 502 });
     }
 

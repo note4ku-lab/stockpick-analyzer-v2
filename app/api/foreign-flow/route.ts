@@ -1,28 +1,10 @@
 import { NextResponse } from "next/server";
 
-const ZAPI_BASE = "https://api.zpi.web.id/v1/finance:idx";
+const ZAPI_HISTORY = "https://api.zpi.web.id/v1/finance:idx/stock-history";
 
-function rowsFrom(data: any): any[] {
-  const candidates = [
-    data?.data,
-    data?.items,
-    data?.content,
-    data?.result,
-    data?.data?.items,
-    data?.data?.content,
-  ];
-  for (const value of candidates) {
-    if (Array.isArray(value)) return value;
-  }
-  return [];
-}
-
-function num(...values: any[]) {
-  for (const value of values) {
-    const x = Number(value);
-    if (Number.isFinite(x)) return x;
-  }
-  return null;
+function toFinite(value: any) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function GET(request: Request) {
@@ -47,94 +29,107 @@ export async function GET(request: Request) {
   }
 
   try {
-    // The diagnostic intentionally uses GET and does not expose the API key.
-    // Query both common documented parameter forms so we can see which
-    // response shape the current Zapi account returns.
-    const endpoints = [
-      `foreign-flow?symbol=${encodeURIComponent(symbol)}&length=20&start=0`,
-      `foreign-flow?code=${encodeURIComponent(symbol)}&length=20&start=0`,
-    ];
-
-    const results = [];
-
-    for (const path of endpoints) {
-      const response = await fetch(`${ZAPI_BASE}/${path}`, {
+    const response = await fetch(
+      `${ZAPI_HISTORY}?code=${encodeURIComponent(symbol)}&length=20`,
+      {
         headers: {
           "x-api-key": apiKey,
           Accept: "application/json",
         },
         cache: "no-store",
-      });
-
-      const text = await response.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { raw: text.slice(0, 1000) };
       }
+    );
 
-      const rows = rowsFrom(data);
-
-      results.push({
-        endpoint: path,
-        status: response.status,
-        ok: response.ok,
-        keys:
-          data && typeof data === "object"
-            ? Object.keys(data).slice(0, 20)
-            : [],
-        count: rows.length,
-        sampleKeys:
-          rows[0] && typeof rows[0] === "object"
-            ? Object.keys(rows[0]).slice(0, 30)
-            : [],
-        sample: rows.slice(0, 5).map((row: any) => ({
-          date: row.date ?? row.Date ?? row.tanggal ?? null,
-          foreignBuy: num(
-            row.foreignBuy,
-            row.ForeignBuy,
-            row.foreign_buy,
-            row.buyForeign,
-            row.BuyForeign
-          ),
-          foreignSell: num(
-            row.foreignSell,
-            row.ForeignSell,
-            row.foreign_sell,
-            row.sellForeign,
-            row.SellForeign
-          ),
-          netForeign: num(
-            row.netForeign,
-            row.NetForeign,
-            row.net_foreign,
-            row.foreignNet,
-            row.ForeignNet
-          ),
-        })),
-      });
+    const text = await response.text();
+    let data: any = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text.slice(0, 1000) };
     }
 
-    const successful = results.find((item) => item.ok && item.count > 0);
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          symbol,
+          status: response.status,
+          error: "Zapi stock-history gagal",
+          responseKeys:
+            data && typeof data === "object" ? Object.keys(data) : [],
+        },
+        { status: 502 }
+      );
+    }
+
+    const items = Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data?.data?.items)
+        ? data.data.items
+        : [];
+
+    const rows = items
+      .map((item: any) => ({
+        date: String(item.date ?? item.Date ?? ""),
+        foreignBuyShares: toFinite(
+          item.foreignBuyShares ?? item.ForeignBuyShares
+        ),
+        foreignSellShares: toFinite(
+          item.foreignSellShares ?? item.ForeignSellShares
+        ),
+        netForeignShares: toFinite(
+          item.netForeignShares ?? item.NetForeignShares
+        ),
+      }))
+      .filter(
+        (x: any) =>
+          x.date &&
+          x.foreignBuyShares !== null &&
+          x.foreignSellShares !== null &&
+          x.netForeignShares !== null
+      )
+      .sort(
+        (a: any, b: any) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+
+    const recent5 = rows.slice(-5);
+    const recent20 = rows.slice(-20);
+    const latest = rows.at(-1) ?? null;
+    const net5 = recent5.reduce(
+      (sum: number, x: any) => sum + x.netForeignShares,
+      0
+    );
+    const net20 = recent20.reduce(
+      (sum: number, x: any) => sum + x.netForeignShares,
+      0
+    );
 
     return NextResponse.json({
-      success: Boolean(successful),
+      success: true,
       symbol,
-      message: successful
-        ? "Foreign Flow berhasil ditemukan."
-        : "Foreign Flow belum ditemukan. Lihat diagnostic untuk status dan bentuk response Zapi.",
-      diagnostic: results,
-      note: "Endpoint diagnostic GET. API key tidak dikirim ke browser.",
+      source: "Zapi IDX stock-history",
+      unit: "shares",
+      latest,
+      summary: {
+        tradingDays: rows.length,
+        net5,
+        net20,
+        positiveDays5: recent5.filter((x: any) => x.netForeignShares > 0).length,
+        sampleDays5: recent5.length,
+        recent5,
+      },
+      rawKeys:
+        items[0] && typeof items[0] === "object"
+          ? Object.keys(items[0])
+          : [],
     });
   } catch (error) {
     return NextResponse.json(
       {
         success: false,
         error:
-          error instanceof Error
-            ? `Fetch error: ${error.message}`
-            : "Fetch error",
+          error instanceof Error ? error.message : "Fetch error",
       },
       { status: 502 }
     );

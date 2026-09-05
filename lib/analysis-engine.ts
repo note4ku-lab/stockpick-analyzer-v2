@@ -2,6 +2,19 @@ export type Candle = { date:string; open:number; high:number; low:number; close:
 export type AnalysisMode = "AUTO" | "SCALPING" | "DAY TRADE" | "SWING" | "LONG SWING"
 export type Signal = "BUY" | "HOLD" | "SELL"
 
+export type ForeignFlowContext = {
+  latestNetShares:number
+  latestBuyShares:number
+  latestSellShares:number
+  latestDate:string|null
+  net5:number
+  net20:number
+  positiveDays5:number
+  sampleDays5:number
+  status:"ACCUMULATION"|"DISTRIBUTION"|"NEUTRAL"
+  trend:"IMPROVING"|"WEAKENING"|"FLAT"
+}
+
 type Direction = "BULLISH" | "NEUTRAL" | "BEARISH"
 
 export type AnalysisResult = {
@@ -22,6 +35,7 @@ export type AnalysisResult = {
   resistance:number
   reasons:string[]
   confidenceBreakdown:{label:string; score:number; note:string}[]
+  foreignFlow:ForeignFlowContext | null
   indicators:{
     price:number; changePct:number; ma5:number; ma20:number; ma50:number; ma100:number
     rsi:number; macd:number; macdSignal:number; macdHistogram:number
@@ -46,7 +60,15 @@ function atr(c:Candle[],p=14){if(c.length<=p)return 0;const tr:number[]=[];for(l
 function clamp(n:number,a:number,b:number){return Math.max(a,Math.min(b,n))}
 function tick(n:number){return Math.max(1,Math.round(n))}
 
-export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):AnalysisResult{
+function formatShares(n:number){
+  const a=Math.abs(n)
+  if(a>=1_000_000_000) return `${(a/1_000_000_000).toFixed(1)} miliar`
+  if(a>=1_000_000) return `${(a/1_000_000).toFixed(1)} juta`
+  if(a>=1_000) return `${(a/1_000).toFixed(1)} ribu`
+  return `${Math.round(a)}`
+}
+
+export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO",foreignFlow:ForeignFlowContext|null=null):AnalysisResult{
   if(c.length<100)throw new Error("Minimal membutuhkan 100 data candle untuk analisis yang stabil")
   const closes=c.map(x=>x.close), vols=c.map(x=>x.volume), price=closes.at(-1)!, prev=closes.at(-2)??price
   const ma5=sma(closes,5)??price, ma20=sma(closes,20)??price, ma50=sma(closes,50)??ma20, ma100=sma(closes,100)??ma50
@@ -74,7 +96,12 @@ export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):Analy
   const macdScore=mx.macd>mx.signal?(mx.histogram>=0?1:0.5):-1
   const volumeScore=volumeStatus==="HIGH"?(price>=prev?1:-1):volumeStatus==="LOW"?0:0.35
   const priceScore=price>=prev?0.6:-0.6
-  const composite=trendScore*weights.trend+maScore*weights.ma+momentumScore*weights.momentum+macdScore*weights.macd+volumeScore*weights.volume+priceScore*weights.price
+  const foreignScore = foreignFlow
+    ? foreignFlow.status==="ACCUMULATION" ? 1 : foreignFlow.status==="DISTRIBUTION" ? -1 : 0
+    : 0
+  const foreignWeight = 0.10
+  const baseWeight = 1 - foreignWeight
+  const composite=(trendScore*weights.trend+maScore*weights.ma+momentumScore*weights.momentum+macdScore*weights.macd+volumeScore*weights.volume+priceScore*weights.price)*baseWeight + foreignScore*foreignWeight
   const score=clamp(Math.round(50+50*composite),0,100)
   const signal:Signal=score>=65?"BUY":score<=35?"SELL":"HOLD"
   const trend:Direction=score>=60?"BULLISH":score<=40?"BEARISH":"NEUTRAL"
@@ -87,6 +114,11 @@ export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):Analy
   if(mx.macd>mx.signal) reasons.push("MACD berada di atas signal"); else reasons.push("MACD berada di bawah signal")
   if(volumeStatus==="HIGH") reasons.push("Volume meningkat signifikan"); else if(volumeStatus==="LOW") reasons.push("Volume di bawah rata-rata MA20"); else reasons.push("Volume berada di sekitar rata-rata MA20")
   reasons.push(`Setup ${method.toLowerCase()} menggunakan volatilitas ATR untuk level risiko`)
+  if(foreignFlow){
+    if(foreignFlow.status==="ACCUMULATION") reasons.push(`Foreign Flow menunjukkan akumulasi asing (${formatShares(foreignFlow.latestNetShares)} lembar net buy terbaru)`)
+    else if(foreignFlow.status==="DISTRIBUTION") reasons.push(`Foreign Flow menunjukkan distribusi asing (${formatShares(Math.abs(foreignFlow.latestNetShares))} lembar net sell terbaru)`)
+    else reasons.push("Foreign Flow masih netral; belum ada tekanan asing yang dominan")
+  }
 
   const cfg=MODE[method], atrSafe=Math.max(atrValue,price*0.005)
   // Trade plan: entries are explicitly directional. BUY waits below price (pullback),
@@ -110,7 +142,7 @@ export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):Analy
   const reward=Math.abs(tp2-entry), rr=reward/risk
 
   // Confidence is signal confidence, not a probability of profit.
-  const components=[trendScore,maScore,momentumScore,macdScore,volumeScore,priceScore]
+  const components=[trendScore,maScore,momentumScore,macdScore,volumeScore,priceScore,foreignScore]
   const agreement=components.reduce((sum,x)=>sum+(Math.abs(x)>=0.5?1:0),0)/components.length
   const confidence=clamp(Math.round(52+agreement*25+Math.abs(composite)*18),52,92)
   const rrScore=clamp(Math.round((Math.min(rr,3)/3)*100),0,100)
@@ -121,10 +153,11 @@ export function analyzeStock(c:Candle[],requestedMode:AnalysisMode="AUTO"):Analy
     {label:"RSI",score:clamp(Math.round(50+50*momentumScore),0,100),note:"Momentum dan kondisi jenuh"},
     {label:"Volume",score:clamp(Math.round(50+50*volumeScore),0,100),note:"Aktivitas volume vs MA20"},
     {label:"Price Action",score:clamp(Math.round(50+50*priceScore),0,100),note:"Perubahan harga terbaru"},
+    {label:"Foreign Flow",score:clamp(Math.round(50+50*foreignScore),0,100),note:foreignFlow ? `${foreignFlow.status} • ${foreignFlow.trend}` : "Data foreign flow belum tersedia"},
     {label:"Risk / Reward",score:rrScore,note:`R/R 1 : ${rr.toFixed(1)}`},
   ]
 
   const entryType = signal === "BUY" ? "BUY ON PULLBACK" : signal === "SELL" ? "SELL ON RETEST" : "WAIT"
 
-  return {score,confidence,signal,trend,method,entryType,entry:tick(entry),entryLow:tick(entryLow),entryHigh:tick(entryHigh),stopLoss:tick(stopLoss),tp1:tick(tp1),tp2:tick(tp2),riskReward:rr,support:tick(support),resistance:tick(resistance),reasons,confidenceBreakdown,indicators:{price,changePct:(price-prev)/prev*100,ma5,ma20,ma50,ma100,rsi:rv,macd:mx.macd,macdSignal:mx.signal,macdHistogram:mx.histogram,volume,volumeMA20:vma,atr:atrSafe,atrPct:atrSafe/price*100,priceVsMA20,priceVsMA50,priceVsMA100,maTrend,momentum,volumeStatus}}
+  return {score,confidence,signal,trend,method,entryType,foreignFlow,entry:tick(entry),entryLow:tick(entryLow),entryHigh:tick(entryHigh),stopLoss:tick(stopLoss),tp1:tick(tp1),tp2:tick(tp2),riskReward:rr,support:tick(support),resistance:tick(resistance),reasons,confidenceBreakdown,indicators:{price,changePct:(price-prev)/prev*100,ma5,ma20,ma50,ma100,rsi:rv,macd:mx.macd,macdSignal:mx.signal,macdHistogram:mx.histogram,volume,volumeMA20:vma,atr:atrSafe,atrPct:atrSafe/price*100,priceVsMA20,priceVsMA50,priceVsMA100,maTrend,momentum,volumeStatus}}
 }

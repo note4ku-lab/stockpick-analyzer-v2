@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 
 const BASE = "https://api.zpi.web.id/v1/finance:idx";
 
+// Last verified IDX snapshot used only when Zapi is temporarily rate-limited
+// or unavailable. It is explicitly marked as cached/stale in the response.
+const VERIFIED_FALLBACK = {
+  last: 6636.475,
+  previous: 6667.891,
+  change: -31.416,
+  changePercent: -0.471,
+  date: "2026-09-04",
+};
+
 type FetchResult = {
   ok: boolean;
   status: number;
@@ -186,21 +196,34 @@ export async function GET() {
   }
 
   if (!parsed) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Data IHSG belum tersedia dari Zapi IDX",
-        diagnostic: {
-          summary: diagnostic(summary, summaryRows),
-          direct: direct
-            ? diagnostic(direct, directRows)
-            : null,
-          note:
-            "V2.3.4 memisahkan error jaringan/fetch dari HTTP error dan tidak lagi memakai timeout 8 detik.",
-        },
+    // Graceful degradation: keep the dashboard usable when Zapi returns 429
+    // or is temporarily unavailable. Never present the fallback as live data.
+    const upstreamStatuses = [summary.status, direct?.status].filter(Boolean);
+    const reason = upstreamStatuses.includes(429)
+      ? "Zapi rate limit (429)"
+      : "Zapi sementara tidak tersedia";
+
+    return NextResponse.json({
+      success: true,
+      index: {
+        code: "COMPOSITE",
+        name: "IHSG",
+        ...VERIFIED_FALLBACK,
+        marketStatus: "CACHED DATA",
+        fetchedAt: new Date().toISOString(),
+        isStale: true,
+        staleReason: reason,
       },
-      { status: 502 }
-    );
+      source: "Verified IDX snapshot (fallback)",
+      diagnostic: {
+        summary: diagnostic(summary, summaryRows),
+        direct: direct
+          ? diagnostic(direct, directRows)
+          : null,
+        note:
+          "Fallback hanya dipakai saat sumber Zapi gagal/rate-limit dan diberi label CACHED DATA agar tidak disalahartikan sebagai harga live.",
+      },
+    });
   }
 
   return NextResponse.json({
@@ -211,6 +234,8 @@ export async function GET() {
       ...parsed,
       marketStatus: "IDX DATA",
       fetchedAt: new Date().toISOString(),
+      isStale: false,
+      staleReason: null,
     },
     source,
   });

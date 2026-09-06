@@ -32,3 +32,5 @@
 
 /* V2.9.1: separate Target Match from Broker Signal */
 .brokerRank small{display:block;color:#71857c;font-size:7px;letter-spacing:1px;font-weight:900;margin-top:3px}.brokerRank span{margin-top:2px}.intelSub{display:block;color:#71857c;font-size:8px;margin-top:4px}.brokerIntel .intelTop h3{font-size:15px}
+
+.live.stale{opacity:.82}

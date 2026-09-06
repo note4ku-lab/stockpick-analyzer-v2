@@ -1,6 +1,6 @@
 {
   "name": "stockpick-analyzer",
-  "version": "2.7.0",
+  "version": "2.8.2",
   "private": true,
   "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"next lint"},
   "dependencies": {"next":"latest","react":"latest","react-dom":"latest","lucide-react":"latest"},

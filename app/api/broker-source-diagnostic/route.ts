@@ -55,8 +55,8 @@ export async function GET(request: Request) {
       apiKey
     );
 
-    const stockId = resolve.data?.stockId ?? null;
-    const base = `code=${encodeURIComponent(symbol)}${stockId ? `&stockId=${encodeURIComponent(String(stockId))}` : ""}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+    const stockId = resolve.data?.stockId ?? resolve.data?.data?.stockId ?? null;
+    const base = `${stockId ? `stockId=${encodeURIComponent(String(stockId))}&` : ""}code=${encodeURIComponent(symbol)}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
 
     const [gross, net] = await Promise.all([
       zapi(`${ZAPI_BROKER}?${base}&net=false`, apiKey),
@@ -83,6 +83,12 @@ export async function GET(request: Request) {
       stockId,
       source: "Zapi Pluang broker-summary",
       range: { startDate, endDate },
+      resolve: {
+        status: resolve.status,
+        ok: resolve.ok,
+        stockId,
+        keys: resolve.data && typeof resolve.data === "object" ? Object.keys(resolve.data) : [],
+      },
       result: gross.ok && grossBuyers.length + grossSellers.length > 0
         ? "BROKER_BY_STOCK_SOURCE_CONFIRMED"
         : "BROKER_BY_STOCK_SOURCE_NOT_CONFIRMED",

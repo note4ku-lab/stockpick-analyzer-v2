@@ -1,8 +1,25 @@
 {
   "name": "stockpick-analyzer",
-  "version": "2.8.2",
+  "version": "2.9.1",
   "private": true,
-  "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"next lint"},
-  "dependencies": {"next":"latest","react":"latest","react-dom":"latest","lucide-react":"latest"},
-  "devDependencies": {"typescript":"latest","@types/node":"latest","@types/react":"latest","@types/react-dom":"latest","eslint":"latest","eslint-config-next":"latest"}
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest"
+  }
 }

@@ -59,66 +59,66 @@ nav a{font-size:14px}
 .pick p{font-size:12px}
 .pickBottom small,.metric small,.tradeGrid small{font-size:10px}
 .pickBottom b{font-size:13px}
-.pickBottom b span{font-size:10px}
+.pickBottom b span{font-size:11px}
 .stockChange{font-size:14px}
 .modeTabs button,.detailTabs button{font-size:11px}
-.signalHero small{font-size:10px}
+.signalHero small{font-size:11px}
 .decisionCopy p{font-size:14px}
-.rr{font-size:11px}
+.rr{font-size:12px}
 .levelsLine{font-size:12px}
-.reason b{font-size:12px}
-.reason p{font-size:11px}
+.reason b{font-size:13px}
+.reason p{font-size:12px}
 .chartTabs{font-size:12px}
 .chartTabs button{font-size:11px}
 .chartLegend{font-size:12px}
 .detailTabs button{font-size:11px}
-.technical span{font-size:10px}
+.technical span{font-size:11px}
 .insight p{font-size:13px}
-.aiInsightGrid small{font-size:10px}
+.aiInsightGrid small{font-size:11px}
 .aiInsightGrid p{font-size:13px}
-.aiInsightGrid span{font-size:11px}
-.aiDisclaimer{font-size:11px}
-.emptyDetail p{font-size:12px}
-.brokerDisclaimer{font-size:11px}
+.aiInsightGrid span{font-size:12px}
+.aiDisclaimer{font-size:12px}
+.emptyDetail p{font-size:13px}
+.brokerDisclaimer{font-size:12px}
 .brokerLegend{font-size:12px}
-.brokerResultHead{font-size:10px}
-.brokerVerdict strong{font-size:11px}
-.brokerVerdict small{font-size:10px}
-.brokerSides label{font-size:9px}
-.brokerChip{font-size:10px}
+.brokerResultHead{font-size:11px}
+.brokerVerdict strong{font-size:12px}
+.brokerVerdict small{font-size:11px}
+.brokerSides label{font-size:10px}
+.brokerChip{font-size:11px}
 .watchButton{font-size:10px}
-.brokerField small{font-size:10px}
+.brokerField small{font-size:11px}
 .auditHead span{font-size:12px}
-.auditMetrics span{font-size:11px}
+.auditMetrics span{font-size:12px}
 .auditMetrics b{font-size:12px}
 .auditNote{font-size:12px}
-.tickerChip{font-size:10px}
-.watchEmpty p{font-size:12px}
-.watchTop span{font-size:10px}
-.watchStats small{font-size:9px}
+.tickerChip{font-size:11px}
+.watchEmpty p{font-size:13px}
+.watchTop span{font-size:11px}
+.watchStats small{font-size:10px}
 .watchStats b{font-size:11px}
-.watchNote{font-size:11px}
-.removeWatch{font-size:10px}
+.watchNote{font-size:12px}
+.removeWatch{font-size:11px}
 .intelTop h3{font-size:17px}
-.intelSignal{font-size:10px}
-.intelGrid small{font-size:9px}
-.intelGrid b{font-size:11px}
-.brokerIntel>p{font-size:11px}
+.intelSignal{font-size:11px}
+.intelGrid small{font-size:10px}
+.intelGrid b{font-size:12px}
+.brokerIntel>p{font-size:12px}
 .brokerIntel .eyebrow{font-size:9px}
-.brokerRank small{font-size:9px}
-.intelSub{font-size:10px}
+.brokerRank small{font-size:10px}
+.intelSub{font-size:11px}
 .providerBadge{font-size:11px}
 .sectionHint{font-size:12px}
 .unifiedBadge{font-size:12px}
-.unifiedGrid small{font-size:10px}
+.unifiedGrid small{font-size:11px}
 .unifiedGrid b{font-size:21px}
-.unifiedGrid span{font-size:11px}
+.unifiedGrid span{font-size:12px}
 .unifiedNote{font-size:13px}
-.tradeNote{font-size:12px}
-footer{font-size:11px}
+.tradeNote{font-size:13px}
+footer{font-size:12px}
 
 @media(max-width:800px){
   .hero p{font-size:15px}
   .decisionCopy p{font-size:14px}
-  .reason p{font-size:11px}
+  .reason p{font-size:12px}
 }

@@ -22,7 +22,7 @@ function CandleChart({candles,analysis,range}:{candles:Candle[];analysis:Result;
 function buildAIInsight(result:Result, unified:UnifiedDecision, provider:"LIVE"|"CACHE"|"MOCK"|null){
  const technical=unified.technicalScore>=60?"mendukung bullish":unified.technicalScore<=40?"masih lemah/bearish":"masih netral";
  const foreign=unified.foreignScore>=60?"menunjukkan akumulasi":unified.foreignScore<=40?"menunjukkan distribusi":"belum memberi arah kuat";
- const broker=unified.brokerScore>=60?"mendukung akumulasi":unified.brokerScore<=40?"cenderung distribusi":"relatif netral";
+ const broker=unified.brokerSignal==="AKUMULASI"?"menunjukkan akumulasi":unified.brokerSignal==="DISTRIBUSI"?"menunjukkan distribusi":unified.brokerSignal==="NETRAL"?"relatif netral":"belum tersedia";
  const conflict=unified.conflict?"Karena ketiga sumber belum selaras, sistem memilih pendekatan konservatif.":unified.signal==="BUY"?"Ketiga sumber cukup searah untuk mendukung skenario bullish.":unified.signal==="SELL"?"Tekanan lintas sumber cukup searah untuk mendukung skenario bearish.":"Belum ada dominasi yang cukup kuat untuk keputusan agresif.";
  const source=provider==="LIVE"?"Data LIVE":provider==="CACHE"?"Data CACHE":provider==="MOCK"?"Data MOCK development":"Data analisis";
  const headline=unified.signal==="BUY"?"Sinyal bullish mendapat dukungan lintas sumber":unified.signal==="SELL"?"Sinyal bearish mendapat dukungan lintas sumber":"Sinyal belum cukup selaras";

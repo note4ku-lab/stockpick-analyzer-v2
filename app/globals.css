@@ -40,3 +40,85 @@
 .unifiedCard{margin-top:16px;padding:20px;border:1px solid rgba(164,255,70,.22);border-radius:18px;background:linear-gradient(180deg,rgba(17,38,28,.9),rgba(9,24,17,.9))}.unifiedCard.conflict{border-color:rgba(255,190,70,.38)}.unifiedBadge{padding:7px 11px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.06em}.unifiedBadge.buy{color:#10180d;background:#a4ff46}.unifiedBadge.sell{color:#fff;background:#6e2630}.unifiedBadge.wait{color:#f4e8a0;background:#554b1b}.unifiedBadge{background:#24362a;color:#d8e7dd}.unifiedGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.unifiedGrid>div{padding:14px;border:1px solid rgba(150,190,165,.13);border-radius:12px;background:rgba(3,15,10,.35)}.unifiedGrid small{display:block;font-size:9px;letter-spacing:.13em;color:#789487;margin-bottom:7px}.unifiedGrid b{display:block;font-size:20px}.unifiedGrid span{display:block;margin-top:5px;font-size:10px;color:#8fa69a}.unifiedGrid .composite{border-color:rgba(164,255,70,.32)}.unifiedNote{margin:12px 0 0;color:#91a89b;font-size:12px;line-height:1.6}@media(max-width:760px){.unifiedGrid{grid-template-columns:repeat(2,1fr)}}
 
 .tradeNote{margin:10px 0 0;color:#8ea9a0;font-size:11px;line-height:1.5}.waitPlan{border-color:#6f7f2a}.waitPlan .entry{border-color:#6f7f2a}
+
+/* V3.1.1: readability / larger supporting text */
+body{font-size:15px}
+.eyebrow{font-size:11px}
+.brand small{font-size:10px}
+nav a{font-size:14px}
+.pro{font-size:12px}
+.hero p{font-size:15px}
+.searchBox input{font-size:15px}
+.searchBox button{font-size:14px}
+.error{font-size:14px}
+.cardTop{font-size:11px}
+.marketMain small{font-size:11px}
+.marketCard p{font-size:12px}
+.textBtn{font-size:13px}
+.signal{font-size:10px}
+.pick p{font-size:12px}
+.pickBottom small,.metric small,.tradeGrid small{font-size:10px}
+.pickBottom b{font-size:13px}
+.pickBottom b span{font-size:10px}
+.stockChange{font-size:14px}
+.modeTabs button,.detailTabs button{font-size:11px}
+.signalHero small{font-size:10px}
+.decisionCopy p{font-size:14px}
+.rr{font-size:11px}
+.levelsLine{font-size:12px}
+.reason b{font-size:12px}
+.reason p{font-size:11px}
+.chartTabs{font-size:12px}
+.chartTabs button{font-size:11px}
+.chartLegend{font-size:12px}
+.detailTabs button{font-size:11px}
+.technical span{font-size:10px}
+.insight p{font-size:13px}
+.aiInsightGrid small{font-size:10px}
+.aiInsightGrid p{font-size:13px}
+.aiInsightGrid span{font-size:11px}
+.aiDisclaimer{font-size:11px}
+.emptyDetail p{font-size:12px}
+.brokerDisclaimer{font-size:11px}
+.brokerLegend{font-size:12px}
+.brokerResultHead{font-size:10px}
+.brokerVerdict strong{font-size:11px}
+.brokerVerdict small{font-size:10px}
+.brokerSides label{font-size:9px}
+.brokerChip{font-size:10px}
+.watchButton{font-size:10px}
+.brokerField small{font-size:10px}
+.auditHead span{font-size:12px}
+.auditMetrics span{font-size:11px}
+.auditMetrics b{font-size:12px}
+.auditNote{font-size:12px}
+.tickerChip{font-size:10px}
+.watchEmpty p{font-size:12px}
+.watchTop span{font-size:10px}
+.watchStats small{font-size:9px}
+.watchStats b{font-size:11px}
+.watchNote{font-size:11px}
+.removeWatch{font-size:10px}
+.intelTop h3{font-size:17px}
+.intelSignal{font-size:10px}
+.intelGrid small{font-size:9px}
+.intelGrid b{font-size:11px}
+.brokerIntel>p{font-size:11px}
+.brokerIntel .eyebrow{font-size:9px}
+.brokerRank small{font-size:9px}
+.intelSub{font-size:10px}
+.providerBadge{font-size:11px}
+.sectionHint{font-size:12px}
+.unifiedBadge{font-size:12px}
+.unifiedGrid small{font-size:10px}
+.unifiedGrid b{font-size:21px}
+.unifiedGrid span{font-size:11px}
+.unifiedNote{font-size:13px}
+.tradeNote{font-size:12px}
+footer{font-size:11px}
+
+@media(max-width:800px){
+  .hero p{font-size:15px}
+  .decisionCopy p{font-size:14px}
+  .reason p{font-size:11px}
+}
